@@ -153,9 +153,9 @@ const autoRangePart = {
 };
 
 const _eqRangePart = {
+	mode: 0,
 	pad:  0,
 	soft: null,
-	mode: 0,
 };
 
 const _eqRange = {
@@ -200,6 +200,8 @@ function _rangeNum(_min, _max, cfg) {
 	let cmin = cfg.min;
 	let cmax = cfg.max;
 
+	let incr = cfg.incr;
+
 	let padMin = ifNull(cmin.pad, 0);
 	let padMax = ifNull(cmax.pad, 0);
 
@@ -241,12 +243,12 @@ function _rangeNum(_min, _max, cfg) {
 	let base         = pow(10, floor(mag));
 
 	let _padMin  = nonZeroDelta * (delta == 0 ? (_min == 0 ? .1 : 1) : padMin);
-	let _newMin  = roundDec(incrRoundDn(_min - _padMin, base/10), 9);
+	let _newMin  = roundDec(incrRoundDn(_min - _padMin, ifNull(incr, base/10)), 9);
 	let _softMin = _min >= softMin && (softMinMode == 1 || softMinMode == 3 && _newMin <= softMin || softMinMode == 2 && _newMin >= softMin) ? softMin : inf;
 	let minLim   = max(hardMin, _newMin < _softMin && _min >= _softMin ? _softMin : min(_softMin, _newMin));
 
 	let _padMax  = nonZeroDelta * (delta == 0 ? (_max == 0 ? .1 : 1) : padMax);
-	let _newMax  = roundDec(incrRoundUp(_max + _padMax, base/10), 9);
+	let _newMax  = roundDec(incrRoundUp(_max + _padMax, ifNull(incr, base/10)), 9);
 	let _softMax = _max <= softMax && (softMaxMode == 1 || softMaxMode == 3 && _newMax >= softMax || softMaxMode == 2 && _newMax <= softMax) ? softMax : -inf;
 	let maxLim   = min(hardMax, _newMax > _softMax && _max <= _softMax ? _softMax : max(_softMax, _newMax));
 
@@ -2443,6 +2445,22 @@ function uPlot(opts, data, then) {
 
 	const drawOrder = (opts.drawOrder || ["axes", "series"]).map(key => drawOrderMap[key]);
 
+	function rangeIncr(dataMin, dataMax, rangeCfg, scaleKey) {
+		let sc = scales[scaleKey];
+
+		let axis = axes[sc.axis];
+		let side = axis.side;
+		let ori = side % 2;
+
+		let [_incr, _space] = getIncrSpace(sc.axis, dataMin, dataMax, ori == 0 ? plotWidCss : plotHgtCss);
+
+		rangeCfg.incr = _incr;
+
+		return rangeNum(dataMin, dataMax, rangeCfg);
+	}
+
+	self.rangeIncr = rangeIncr;
+
 	function initScale(scaleKey) {
 		let sc = scales[scaleKey];
 
@@ -2490,7 +2508,11 @@ function uPlot(opts, data, then) {
 					if (!rangeIsArr && isObj(rn)) {
 						let cfg = rn;
 						// this is similar to snapNumY
-						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
+						rn = (self, dataMin, dataMax) => (
+							dataMin == null ? nullNullTuple :
+							sc.axis != null ? rangeIncr(dataMin, dataMax, cfg, scaleKey) :
+							                  rangeNum(dataMin, dataMax, cfg)
+						);
 					}
 				}
 
@@ -3676,7 +3698,8 @@ function uPlot(opts, data, then) {
 
 			let {min, max} = scale;		// 		// should this toggle them ._show = false
 
-			let [_incr, _space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			// when scale.axis is set, these values are computed & cached already (eagerly) during scale ranging
+			let [_incr, _space] = scale.axis != null ? axis._found : getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			if (_space == 0)
 				return;

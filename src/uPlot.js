@@ -372,6 +372,22 @@ export default function uPlot(opts, data, then) {
 
 	const drawOrder = (opts.drawOrder || ["axes", "series"]).map(key => drawOrderMap[key]);
 
+	function rangeIncr(dataMin, dataMax, rangeCfg, scaleKey) {
+		let sc = scales[scaleKey];
+
+		let axis = axes[sc.axis];
+		let side = axis.side;
+		let ori = side % 2;
+
+		let [_incr, _space] = getIncrSpace(sc.axis, dataMin, dataMax, ori == 0 ? plotWidCss : plotHgtCss);
+
+		rangeCfg.incr = _incr;
+
+		return rangeNum(dataMin, dataMax, rangeCfg);
+	}
+
+	self.rangeIncr = rangeIncr;
+
 	function initScale(scaleKey) {
 		let sc = scales[scaleKey];
 
@@ -419,7 +435,11 @@ export default function uPlot(opts, data, then) {
 					if (!rangeIsArr && isObj(rn)) {
 						let cfg = rn;
 						// this is similar to snapNumY
-						rn = (self, dataMin, dataMax) => dataMin == null ? nullNullTuple : rangeNum(dataMin, dataMax, cfg);
+						rn = (self, dataMin, dataMax) => (
+							dataMin == null ? nullNullTuple :
+							sc.axis != null ? rangeIncr(dataMin, dataMax, cfg, scaleKey) :
+							                  rangeNum(dataMin, dataMax, cfg)
+						);
 					}
 				}
 
@@ -1609,7 +1629,8 @@ export default function uPlot(opts, data, then) {
 
 			let {min, max} = scale;		// 		// should this toggle them ._show = false
 
-			let [_incr, _space] = getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
+			// when scale.axis is set, these values are computed & cached already (eagerly) during scale ranging
+			let [_incr, _space] = scale.axis != null ? axis._found : getIncrSpace(i, min, max, ori == 0 ? plotWidCss : plotHgtCss);
 
 			if (_space == 0)
 				return;
